@@ -89,7 +89,7 @@ stages:
         mode: 'auto'
         channel: 'stable'
         version: 'custom'
-        customVersion: '3.13.9'
+        customVersion: '3.24.4'
     - task: FlutterCommand@0
       displayName: "Run clean"
       inputs:
