@@ -30,6 +30,7 @@ class MyApp extends StatelessWidget {
       create: (context) => MyAppState(),
       child: MaterialApp(
         title: 'Namer Flutter App',
+        debugShowCheckedModeBanner: _isNonProduction(),
         theme: ThemeData(
           useMaterial3: true, 
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
@@ -37,6 +38,11 @@ class MyApp extends StatelessWidget {
         home: const MyHomePage(),
       ),
     );
+  }
+
+  bool _isNonProduction() {
+    // Ensure this checks the correct value
+    return const String.fromEnvironment('IS_PROD', defaultValue: 'dev') != 'prod';
   }
 }
 
@@ -71,8 +77,9 @@ class MyAppState extends ChangeNotifier {
         current = WordPair("nonce=", result.nonce);
       }
     } on PlatformException catch (e) {
-      current = WordPair("Braintree PlatformException", e.message??'');
+      current = WordPair("Braintree PlatformException ", e.message??'');
     }
+
     notifyListeners();
   }
 

@@ -125,6 +125,7 @@ stages:
         projectDirectory: '$(Build.SourcesDirectory)'
         buildFlavour: '${{ parameters.env }}'
         entryPoint: 'lib/main.dart'
+        extraArgs: '--dart-define=IS_PROD=${{ parameters.env }}'
       env:
         JAVA_HOME: $(JAVA_HOME_17_X64)
     - task: AndroidSigning@3
