@@ -16,7 +16,7 @@ parameters:
 - name: env
   displayName: 'Deployment Environment'
   type: string
-  default: 'prod'
+  default: 'dev'
   values:
   - dev
   - uat
@@ -100,11 +100,6 @@ stages:
       inputs:
         projectDirectory: './'
         arguments: 'pub get'
-    - task: FlutterCommand@0
-      displayName: "Run packages"
-      inputs:
-        arguments: 'packages pub run build_runner build'
-        projectDirectory: './'
     - task: FlutterCommand@0
       displayName: "Activate localization"
       inputs:
