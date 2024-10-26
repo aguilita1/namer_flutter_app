@@ -61,16 +61,18 @@ class MyAppState extends ChangeNotifier {
     // Load Environment Variables for Testing
     final config = await loadConfig();
     final String clientToken = config['CLIENT_TOKEN'];
-
-    //TODO: Use postman to request new clientToken and update assset/.env
-    BraintreePaymentMethodNonce? result = await Braintree.tokenizeCreditCard(
-      clientToken,
-      request,
-    );
-    if (result != null) {
+    try {
+      //TODO: Use postman to request new clientToken and update assset/.env
+      BraintreePaymentMethodNonce? result = await Braintree.tokenizeCreditCard(
+        clientToken,
+        request,
+      );
+      if (result != null) {
         current = WordPair("nonce=", result.nonce);
+      }
+    } on PlatformException catch (e) {
+      current = WordPair("Braintree PlatformException", e.message??'');
     }
-
     notifyListeners();
   }
 

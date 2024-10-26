@@ -129,7 +129,7 @@ stages:
         target: 'apk'
         projectDirectory: '$(Build.SourcesDirectory)'
         buildFlavour: '${{ parameters.env }}'
-        entryPoint: 'lib/main_${{ parameters.env }}.dart'
+        entryPoint: 'lib/main.dart'
       env:
         JAVA_HOME: $(JAVA_HOME_17_X64)
     - task: AndroidSigning@3
@@ -147,7 +147,7 @@ stages:
         target: 'aab'
         projectDirectory: '$(Build.SourcesDirectory)'
         buildFlavour: '${{ parameters.env }}'
-        entryPoint: 'lib/main_${{ parameters.env }}.dart'
+        entryPoint: 'lib/main.dart'
       env:
         JAVA_HOME: $(JAVA_HOME_17_X64)
     - task: AndroidSigning@3
