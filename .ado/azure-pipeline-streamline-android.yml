@@ -34,6 +34,16 @@ stages:
   - job: SetupEnvAndBuildJob
     steps:
     - task: DownloadSecureFile@1
+      displayName: 'Download .env file'
+      inputs:
+        secureFile: '.env'
+    - task: CopyFiles@2
+      displayName: 'Copy .env file to assets'
+      inputs:
+        SourceFolder: '$(Agent.TempDirectory)'
+        Contents: '**\.env'
+        TargetFolder: '$(Build.SourcesDirectory)/assets/'
+    - task: DownloadSecureFile@1
       displayName: Download key properties file
       inputs:
         secureFile: 'key.properties'
