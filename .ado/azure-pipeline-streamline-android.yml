@@ -2,12 +2,10 @@ trigger: none
 #  branches:
 #    include:
 #      - main
-#      - develop
-
 # pr:
 #   branches:
 #     include:
-#       - devops-develop
+#       - main
 
 pool:
   vmImage: 'macOS-latest'
