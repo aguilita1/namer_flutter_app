@@ -2,7 +2,10 @@ trigger: none
 #  branches:
 #    include:
 #      - main
-#      - develop
+# pr:
+#   branches:
+#     include:
+#       - main
 
 pool:
   vmImage: '$(hostedAgentImageVersion)'
@@ -11,12 +14,11 @@ parameters:
 - name: env
   displayName: 'Deployment Environment'
   type: string
-  default: 'prod'
+  default: 'dev'
   values:
   - dev
   - uat
   - prod
-
 
 variables:
 - group: authentication_credentials_and_settings_ios
@@ -89,14 +91,14 @@ stages:
         projectDirectory: './'
         pubGet: false
         extraArgs: '--no-fatal-warnings'
-
     - task: FlutterBuild@0
       displayName: Flutter Build IPA
       inputs:
         target: 'ios'
-        projectDirectory: './'
+        projectDirectory: '$(Build.SourcesDirectory)'
         buildFlavour: '${{ parameters.env }}'
-        entryPoint: 'lib/main_${{ parameters.env }}.dart'
+        entryPoint: 'lib/main.dart'
+        extraArgs: '--dart-define=IS_PROD=${{ parameters.env }}'
         iosCodesign: false
       env:
         JAVA_HOME: $(JAVA_HOME_17_X64)
