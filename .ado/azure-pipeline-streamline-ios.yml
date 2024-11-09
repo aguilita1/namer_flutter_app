@@ -1,0 +1,207 @@
+trigger: none
+#  branches:
+#    include:
+#      - main
+#      - develop
+
+pool:
+  vmImage: '$(hostedAgentImageVersion)'
+
+parameters:
+- name: env
+  displayName: 'Deployment Environment'
+  type: string
+  default: 'prod'
+  values:
+  - dev
+  - uat
+  - prod
+
+
+variables:
+- group: authentication_credentials_and_settings_ios
+
+name: $(Date:yyyyMMdd).$(Rev:r)
+
+stages:
+- stage: Build
+  jobs:
+  - job: SetupEnvAndBuildJob
+    steps:
+    - task: InstallAppleCertificate@2
+      inputs:
+        certSecureFile: 'apple-distribution.p12'
+        certPwd: '$(certPwd)'
+    - task: InstallAppleProvisioningProfile@1
+      inputs:
+        provisioningProfileLocation: 'secureFiles'
+        provProfileSecureFile: 'namer_flutter_app.mobileprovision' 
+        removeProfile: true
+    - script: |
+        /usr/libexec/PlistBuddy -c Clear _XcodeTaskExportOptions.plist
+        /usr/libexec/PlistBuddy -c "Add provisioningProfiles dict" _XcodeTaskExportOptions.plist
+        /usr/libexec/PlistBuddy -c "Add provisioningProfiles:$(appIdentifier) string Namer Flutter App App Store" _XcodeTaskExportOptions.plist
+        /usr/libexec/PlistBuddy -c "Add teamID string $(teamID)" _XcodeTaskExportOptions.plist
+        /usr/libexec/PlistBuddy -c "Add method string app-store" _XcodeTaskExportOptions.plist
+        more _XcodeTaskExportOptions.plist 
+        pwd
+        echo $(Build.SourcesDirectory)
+      displayName: 'Initializing Plist'
+    - task: CmdLine@2
+      env:
+        JAVA_HOME: $(JAVA_HOME_21_X64)
+        PATH: $(JAVA_HOME_21_X64)/bin:$(PATH)
+      displayName: 'Set JAVA_HOME'
+      inputs:
+        script: |
+          java -version
+          ls -la $(Build.SourcesDirectory)/ios/      
+    - task: FlutterInstall@0
+      inputs:
+        mode: 'auto'
+        channel: 'stable'
+        version: 'custom'
+        customVersion: '3.24.4'
+    - task: FlutterCommand@0
+      displayName: "Run clean"
+      inputs:
+        projectDirectory: './'
+        arguments: 'clean'
+    - task: FlutterCommand@0
+      displayName: "Run pub get"
+      inputs:
+        projectDirectory: './'
+        arguments: 'pub get'
+    - task: FlutterCommand@0
+      displayName: "Run packages"
+      inputs:
+        arguments: 'packages pub run build_runner build'
+        projectDirectory: './'
+    - task: FlutterCommand@0
+      displayName: "Activate localization"
+      inputs:
+        projectDirectory: './'
+        arguments: 'packages pub global activate intl_utils'        
+    - task: FlutterCommand@0
+      displayName: "Run Flutter diagnostics"
+      inputs:
+        projectDirectory: './'
+        arguments: 'doctor -v'
+    - task: FlutterAnalyzeTask@0
+      displayName: "Run Analyze (Static Code Analysis)"
+      continueOnError: true
+      inputs:
+        projectDirectory: './'
+        pubGet: false
+        extraArgs: '--no-fatal-warnings'
+
+    - task: FlutterBuild@0
+      displayName: Flutter Build IPA
+      inputs:
+        target: 'ios'
+        projectDirectory: './'
+        buildFlavour: '${{ parameters.env }}'
+        entryPoint: 'lib/main_${{ parameters.env }}.dart'
+        iosCodesign: false
+      env:
+        JAVA_HOME: $(JAVA_HOME_17_X64)
+    - task: Xcode@5
+      displayName: Xcode Sign IPA
+      inputs:
+        actions: 'archive'
+        configuration: 'Release-${{ parameters.env }}'
+        sdk: 'iphoneos'
+        xcodeVersion: 'specifyPath'
+        xcodeDeveloperDir: '$(xcodeVersionAppPath)'
+        xcWorkspacePath: '$(Build.SourcesDirectory)/ios/Runner.xcworkspace'
+        scheme: '${{ parameters.env }}'
+        packageApp: true
+        exportPath: 'output/ios'
+        exportOptions: plist
+        exportOptionsPlist: _XcodeTaskExportOptions.plist
+        exportMethod: 'app-store'
+        exportTeamId: '$(teamID)'
+        exportArgs: '-allowProvisioningUpdates'
+        signingOption: 'manual'
+        teamId: '$(teamID)'
+        args: '-allowProvisioningUpdates'
+        signingIdentity: '$(APPLE_CERTIFICATE_SIGNING_IDENTITY)'
+        provisioningProfileUuid: '$(APPLE_PROV_PROFILE_UUID)'
+        useXcpretty: false
+    - task: CopyFiles@2
+      displayName: 'Stage IPA Deployment Artifacts'
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)/output/ios'
+        Contents: |
+          *.ipa
+          *.plist          
+        flattenFolders: true
+        TargetFolder: '$(build.artifactStagingDirectory)'
+#TODO: Determine if need to native symbols staged in deployment artifactions
+#    - task: ArchiveFiles@2
+#      displayName: 'Stage Native Symbols Archive'
+#      inputs:
+#        rootFolderOrFile: '$(NativeSymbolsPath)'
+#        includeRootFolder: false
+#        archiveType: 'zip'
+#        archiveFile: '$(build.artifactStagingDirectory)/native_symbols.zip'
+    - task: PublishPipelineArtifact@1
+      displayName: Publish IPA to pipeline artifacts
+      inputs:
+        targetPath: '$(build.artifactStagingDirectory)'
+        artifactName: 'ios-${{ parameters.env }}'
+
+- stage: Deploy
+  dependsOn:
+  - Build
+  condition: and(succeeded(), eq('${{ parameters.env }}', 'prod'))
+  jobs:
+  - job: DeployAppJob
+    steps:
+    - checkout: none
+    - task: DownloadPipelineArtifact@2
+      displayName: Download published artifacts
+      inputs:
+        artifact: 'ios-${{ parameters.env }}'
+        path: '$(build.artifactStagingDirectory)'
+#TODO: Determine if need native symbols
+#    - script: |
+#        npm install -g firebase-tools
+#      displayName: 'Install Firebase CLI'
+#    - script: |
+#        firebase crashlytics:symbols:upload --token $(firebaseCIServerToken) --app $(firebaseIOSAppID) $(build.artifactStagingDirectory)/native_symbols.zip
+#      displayName: 'Upload Native Symbols to Firebase'
+    - task: AppStoreRelease@1
+      displayName: 'Publish to the App Store TestFlight track'
+      inputs:
+        serviceEndpoint: 'AppleStore-via-AppStoreConnectAPI'
+        appIdentifier: $(appIdentifier)
+        ipaPath: '$(build.artifactStagingDirectory)/*.ipa'
+        shouldSkipWaitingForProcessing: true
+        shouldSkipSubmission: true
+    - task: XplatGenerateReleaseNotes@4
+      condition: ne(variables['Build.Reason'], 'Manual')
+      inputs:
+        outputfile: 'releasenote.txt'
+        templateLocation: 'InLine'
+        inlinetemplate: |
+          Release Notes:
+          {{#forEach commits}}
+            - {{this.message}}
+          {{/forEach}}
+        dumpPayloadToConsole: false
+        dumpPayloadToFile: false
+        replaceFile: True
+        getParentsAndChildren: False
+        getAllParents: False
+        getIndirectPullRequests: False
+        stopOnError: False
+        considerPartiallySuccessfulReleases: False
+        checkForManuallyLinkedWI: False
+        wiqlFromTarget: 'WorkItems'
+    - task: PublishPipelineArtifact@1
+      condition: ne(variables['Build.Reason'], 'Manual')
+      displayName: 'Publish release notes to pipeline artifacts'
+      inputs:
+        targetPath: '$(Build.SourcesDirectory)/releasenote.txt'
+        artifactName: 'ReleaseNotes'
