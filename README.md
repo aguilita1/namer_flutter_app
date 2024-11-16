@@ -2,6 +2,8 @@
 
 A reference implementation to demonstrate how to use Azure Piplines with a simple Flutter application that targets iOS and Andriod.
 
+### ⚠️WARNING: Currently broken still working through use-case to build and deploy to Google App Store and Apple App Store.
+
 ## Demonstrates Various Continuous Integration Stages
 * Download Secure File ``DownloadSecureFile@1``
 * Copy File ``CopyFiles@2``
